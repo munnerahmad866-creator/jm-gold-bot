@@ -1,26 +1,28 @@
+import os
+import threading
 from flask import Flask
-import threading, time, random, os
-from datetime import datetime
+import telebot
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
-balance = 1000.0
-trades = 0
 
-def bot_loop():
-    global balance, trades
-    while True:
-        profit = random.choice([5, 6, 7, -2, -1])
-        balance += profit
-        trades += 1
-        print(f"Trade {trades} Profit {profit} Balance {balance} - {datetime.now()}")
-        time.sleep(900)
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "أهلاً شيخ منير البوت شغال 24 ساعة 🔥")
 
 @app.route('/')
 def home():
-    return f"<h1>JM GOLD BOT شغال ✅</h1><h2>Balance: {balance}$</h2><h2>Trades: {trades}</h2><p>{datetime.now()}</p>"
+    return "Bot is Running 24/7 - @munner_er_2026_bot"
 
-threading.Thread(target=bot_loop, daemon=True).start()
+def run_bot():
+    print("Bot polling started...")
+    bot.infinity_polling()
+
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port)
+    t = threading.Thread(target=run_bot)
+    t.start()
+    run_flask()
