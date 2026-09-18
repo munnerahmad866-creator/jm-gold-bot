@@ -1,39 +1,3 @@
-import os, time, random, threading, requests, telebot
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN or ":" not in BOT_TOKEN:
-    print("BOT_TOKEN خطأ!")
-    exit(1)
-
-balance = 10000.0
-open_trade = None
-last_trade_time = 0
-TRADE_INTERVAL = 600
-current_chat_id = None
-readings = []
-
-def get_price():
-    try:
-        r = requests.get("https://api.gold-api.com/price/XAU", timeout=10).json()
-        return float(r['price'])
-    except:
-        return 2650.0
-
-def send(text):
-    global current_chat_id
-    if not current_chat_id: return
-    try:
-        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                      json={"chat_id": current_chat_id, "text": text}, timeout=10)
-    except Exception as e:
-        print(e)
-
-def trading_loop():
-    global balance, open_trade, last_trade_time, readings
-    print("Trading loop started - every 10 min")
-    while True:
-        try:
-            p = get_price()
             readings.append(p)
             if len(readings) > 100: readings.pop(0)
             now = time.time()
