@@ -14,7 +14,7 @@ trade_type = ""
 @app.route('/')
 def home():
     p = list(prices)[-1] if prices else 0
-    return f"JM-GOLD Active | Price {p}"
+    return f"JM-GOLD Active | {p}"
 
 def get_gold():
     try:
@@ -33,18 +33,18 @@ def get_gold():
 def calc_rsi(data, period=7):
     if len(data) < period + 1:
         return 50
-    gains = 0
-    losses = 0
-    for i in range(1, period + 1):
-        diff = data[-i] - data[-i-1]
-        if diff > 0:
-            gains += diff
+    gains=0
+    losses=0
+    for i in range(1, period+1):
+        diff=data[-i]-data[-i-1]
+        if diff>0:
+            gains+=diff
         else:
-            losses -= diff
-    if losses == 0:
-        return 70
-    rs = gains / losses
-    return 100 - (100 / (1 + rs))
+            losses-=diff
+    if losses==0:
+        return 65
+    rs=gains/losses
+    return 100-(100/(1+rs))
 
 def send(text):
     try:
@@ -54,9 +54,10 @@ def send(text):
 
 def bot_loop():
     global in_trade, entry_price, trade_type
-    send("✅ البوت اشتغل - يجمع 10 قراءات (10 دقايق)")
+    time.sleep(5)
+    send("✅ بوت JM جاهز\nراح يجمع 10 قراءات (10 دقايق) وكل ما تجي فرصة ابلغك اشتري او بيع على منصة JM")
     while True:
-        price = get_gold()
+        price=get_gold()
         if not price:
             time.sleep(30)
             continue
@@ -64,41 +65,51 @@ def bot_loop():
         if len(prices) < 10:
             time.sleep(60)
             continue
-        rsi = calc_rsi(list(prices))
-        ema5 = sum(list(prices)[-5:]) / 5
-        ema10 = sum(list(prices)[-10:]) / 10
+        rsi=calc_rsi(list(prices))
+        ema5=sum(list(prices)[-5:])/5
+        ema10=sum(list(prices)[-10:])/10
+        
         if not in_trade:
-            if rsi < 40 and ema5 > ema10:
-                entry_price = price
-                trade_type = "شراء"
-                in_trade = True
-                send(f"📈 فرصة شراء\nالسعر: {price:.2f}$\n➡️ ادخل شراء هسه")
-            elif rsi > 60 and ema5 < ema10:
-                entry_price = price
-                trade_type = "بيع"
-                in_trade = True
-                send(f"📉 فرصة بيع\nالسعر: {price:.2f}$\n➡️ ادخل بيع هسه")
+            if rsi < 45 and ema5 > ema10:
+                entry_price=price
+                trade_type="شراء"
+                in_trade=True
+                send(f"📈 فرصة قوية - اشتري هسه على منصة JM\n💰 السعر: {price:.2f}$\n📊 RSI: {rsi:.1f}\nادخل شراء وارباح ان شاء الله")
+            elif rsi > 55 and ema5 < ema10:
+                entry_price=price
+                trade_type="بيع"
+                in_trade=True
+                send(f"📉 فرصة قوية - بيع هسه على منصة JM\n💰 السعر: {price:.2f}$\n📊 RSI: {rsi:.1f}\nادخل بيع وارباح ان شاء الله")
         else:
-            diff = price - entry_price if trade_type == "شراء" else entry_price - price
-            if diff >= 1.2 or diff <= -0.8:
-                send(f"🔒 سد الصفقة هسه\nالنوع: {trade_type}\nالسعر: {price:.2f}$")
-                in_trade = False
+            diff=price-entry_price if trade_type=="شراء" else entry_price-price
+            if diff >= 1.5 or diff <= -1.0:
+                send(f"🔒 سكر الصفقة هسه على منصة JM\nالنوع: {trade_type}\nالسعر: {price:.2f}$")
+                in_trade=False
                 time.sleep(300)
         time.sleep(90)
 
 def check_messages():
-    last_id = 0
+    last_id=0
+    time.sleep(10)
+    try:
+        r=requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset=-1", timeout=10).json()
+        if r.get("result"):
+            last_id=r["result"][-1]["update_id"]
+    except:
+        pass
     while True:
         try:
-            r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_id+1}", timeout=20).json()
+            r=requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_id+1}", timeout=25).json()
             for upd in r.get("result", []):
-                last_id = upd["update_id"]
-                msg = upd.get("message", {}).get("text", "")
-                if not msg:
-                    continue
+                last_id=upd["update_id"]
+                msg=upd.get("message",{}).get("text","")
                 if "/status" in msg:
-                    p = list(prices)[-1] if prices else 0
-                    send(f"📊 يجمع: {len(prices)}/10\nالسعر: {p:.2f}$\nفي صفقة: {trade_type if in_trade else 'لا'}")
+                    if len(prices) < 2:
+                        send("⏳ بعده يجمع... انتظر دقايق")
+                    else:
+                        p=list(prices)[-1]
+                        rsi=calc_rsi(list(prices))
+                        send(f"📊 الحالة: يجمع {len(prices)}/10\n💰 السعر: {p:.2f}$\n📈 RSI: {rsi:.1f}\nفي صفقة: {trade_type if in_trade else 'لا يوجد - ينتظر فرصة'}")
         except:
             pass
         time.sleep(5)
@@ -107,5 +118,5 @@ threading.Thread(target=bot_loop, daemon=True).start()
 threading.Thread(target=check_messages, daemon=True).start()
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port=int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
