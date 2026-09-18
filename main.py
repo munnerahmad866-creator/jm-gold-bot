@@ -3,7 +3,6 @@ from collections import deque
 from flask import Flask
 
 app = Flask(__name__)
-
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8217643740:AAF9S1SErV87xt2l_XtFyRMW51kLa3vmVyM")
 CHAT_ID = os.getenv("CHAT_ID", "5868066096")
 
@@ -15,7 +14,7 @@ trade_type = ""
 @app.route('/')
 def home():
     p = list(prices)[-1] if prices else 0
-    return f"JM-GOLD شغال | السعر {p} | في صفقة: {trade_type if in_trade else 'لا'}"
+    return f"JM-GOLD Active | Price {p}"
 
 def get_gold():
     try:
@@ -26,4 +25,87 @@ def get_gold():
     except:
         pass
     try:
-       
+        r = requests.get("https://api.gold-api.com/price/XAU", timeout=10).json()
+        return float(r['price'])
+    except:
+        return None
+
+def calc_rsi(data, period=7):
+    if len(data) < period + 1:
+        return 50
+    gains = 0
+    losses = 0
+    for i in range(1, period + 1):
+        diff = data[-i] - data[-i-1]
+        if diff > 0:
+            gains += diff
+        else:
+            losses -= diff
+    if losses == 0:
+        return 70
+    rs = gains / losses
+    return 100 - (100 / (1 + rs))
+
+def send(text):
+    try:
+        requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", params={"chat_id": CHAT_ID, "text": text}, timeout=15)
+    except:
+        pass
+
+def bot_loop():
+    global in_trade, entry_price, trade_type
+    send("✅ البوت اشتغل - يجمع 10 قراءات (10 دقايق)")
+    while True:
+        price = get_gold()
+        if not price:
+            time.sleep(30)
+            continue
+        prices.append(price)
+        if len(prices) < 10:
+            time.sleep(60)
+            continue
+        rsi = calc_rsi(list(prices))
+        ema5 = sum(list(prices)[-5:]) / 5
+        ema10 = sum(list(prices)[-10:]) / 10
+        if not in_trade:
+            if rsi < 40 and ema5 > ema10:
+                entry_price = price
+                trade_type = "شراء"
+                in_trade = True
+                send(f"📈 فرصة شراء\nالسعر: {price:.2f}$\n➡️ ادخل شراء هسه")
+            elif rsi > 60 and ema5 < ema10:
+                entry_price = price
+                trade_type = "بيع"
+                in_trade = True
+                send(f"📉 فرصة بيع\nالسعر: {price:.2f}$\n➡️ ادخل بيع هسه")
+        else:
+            diff = price - entry_price if trade_type == "شراء" else entry_price - price
+            if diff >= 1.2 or diff <= -0.8:
+                send(f"🔒 سد الصفقة هسه\nالنوع: {trade_type}\nالسعر: {price:.2f}$")
+                in_trade = False
+                time.sleep(300)
+        time.sleep(90)
+
+def check_messages():
+    last_id = 0
+    while True:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_id+1}", timeout=20).json()
+            for upd in r.get("result", []):
+                last_id = upd["update_id"]
+                msg = upd.get("message", {}).get("text", "")
+                if not msg:
+                    continue
+                if "/status" in msg:
+                    p = list(prices)[-1] if prices else 0
+                    send(f"📊 يجمع: {len(prices)}/10\nالسعر: {p:.2f}$\nفي صفقة: {trade_type if in_trade else 'لا'}")
+        except:
+            pass
+        time.sleep(5)
+
+threading.Thread(target=bot_loop, daemon=True).start()
+threading.Thread(target=check_messages, daemon=True).start()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
