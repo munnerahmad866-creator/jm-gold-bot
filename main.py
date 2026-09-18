@@ -15,7 +15,7 @@ trade_type = ""
 
 @app.route('/')
 def home():
-    return "بوت JM-GOLD شغال - يحلل الذهب"
+    return f"بوت JM-GOLD شغال | يجمع {len(prices)}/20 | السعر {list(prices)[-1] if prices else 0}"
 
 def get_gold():
     try:
@@ -46,7 +46,7 @@ def send(text):
 
 def bot_loop():
     global in_trade, entry_price, trade_type, balance
-    send("✅ تم اصلاح البوت\nالان مربوط على Railway بشكل صحيح\nيحلل الذهب ويگولك بيع/شراء")
+    send("✅ البوت اشتغل بنجاح\nدز /status حتى تشوف وين وصل")
     while True:
         price = get_gold()
         if not price:
@@ -75,15 +75,33 @@ def bot_loop():
             if profit >= 12 or profit <= -8:
                 balance += profit
                 if profit > 0:
-                    send(f"✅ سديت صفقة {trade_type} ربح +{profit:.2f}$\nالرصيد الجديد: {balance:.2f}$ 💼\nالصفقة الجاية بعد 10 دقايق ⏳")
+                    send(f"✅ سديت صفقة {trade_type} ربح +{profit:.2f}$\nالرصيد الجديد: {balance:.2f}$ 💼")
                 else:
-                    send(f"❌ سديت صفقة {trade_type} خسارة {profit:.2f}$\nالرصيد الجديد: {balance:.2f}$ 💼\nالصفقة الجاية بعد 10 دقايق ⏳")
+                    send(f"❌ سديت صفقة {trade_type} خسارة {profit:.2f}$\nالرصيد الجديد: {balance:.2f}$ 💼")
                 in_trade = False
                 time.sleep(600)
         time.sleep(180)
 
-# شغل البوت بخلفية
+def check_messages():
+    last_id = 0
+    while True:
+        try:
+            r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={last_id+1}", timeout=20).json()
+            for upd in r.get("result", []):
+                last_id = upd["update_id"]
+                msg = upd.get("message", {})
+                text = msg.get("text", "")
+                if "/status" in text or "وين" in text or "status" in text:
+                    p = list(prices)[-1] if prices else 0
+                    txt = f"📊 حالة البوت:\n📦 يجمع: {len(prices)}/20\n💰 السعر الحالي: {p:.2f}$\n💼 الرصيد: {balance:.2f}$\n📈 في صفقة: {trade_type if in_trade else 'لا يوجد'}"
+                    send(txt)
+                if "/start" in text:
+                    send("اهلا شيخ 👋\nالبوت شغال يحلل الذهب\nدز /status حتى تشوف وين وصل")
+        except: pass
+        time.sleep(5)
+
 threading.Thread(target=bot_loop, daemon=True).start()
+threading.Thread(target=check_messages, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
